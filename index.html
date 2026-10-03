@@ -926,7 +926,7 @@ const DUSK_NAMES = { sword: '황혼의 수호자', mage: '황혼의 마법사', 
 const DUSK_ULT = { sword: '궁극기 중 블랙홀처럼 적을 끌어당김', mage: '궁극기 중 주변에 번개가 계속 내리침', archer: '궁극기의 모든 화살이 강화탄', assassin: '궁극기 중 쿠나이 쿨타임 없음' };
 const DUSKF = { basic: 1.3 };
 for (const c of ['sword', 'mage', 'archer', 'assassin']) {
-  FORMS[c].dusk = { name: DUSK_NAMES[c], pal: DUSK_PALS[c], reach: CLASSES[c].reach * VOIDF.reach * DUSKF.basic, arrowMax: c === 'archer' ? 520 * DUSKF.basic : undefined, ach: 'justAdventurer',
+  FORMS[c].dusk = { name: DUSK_NAMES[c], pal: DUSK_PALS[c], reach: CLASSES[c].reach * VOIDF.reach * DUSKF.basic, arrowMax: c === 'archer' ? 520 * DUSKF.basic : undefined, unlock: 'dusk', lockText: '이 직업으로 2-5 카다베르를 처치하면 해금',
     desc: '공허에서 발전한 황혼의 힘. ' + DUSK_ULT[c], cut: ['황혼 해방', 'TWILIGHT ASCENSION'], cutCol: ['#ff8a7a', '#1e2050', '#ffe2a0'],
     tag: '공허 능력 + 평타 범위↑↑ + 궁 강화', css: 'dusk' };
 }
@@ -936,7 +936,7 @@ const BM = () => isDusk() ? DUSKF.basic : 1;
 const rangeMul = () => isVL() ? VOIDF.range : 1;
 const HP_REGEN = 30;
 // 테스트 버전: true면 모든 스테이지가 처음부터 열려 있어요. 정식 버전에서는 false로 바꾸세요.
-const TEST_MODE = false;
+const TEST_MODE = true;
 const testLevel = si => si >= 12 ? 100 : si >= 10 ? 75 + (si - 10) * 5 : 1 + si * 3;
 
 // ---------- save ----------
@@ -957,8 +957,11 @@ function loadSave() {
   if (!s.form) s.form = {};
   if (!s.dg) s.dg = {};
   if (!s.voidForm) s.voidForm = {};
+  if (!s.duskForm) s.duskForm = {};
   if (s.twilight && !s.ach.worldHero) s.ach.worldHero = 1;
-  if (s.ach.boss_cadaber) { s.inverted = true; if (!s.ach.justAdventurer) s.ach.justAdventurer = Date.now(); }
+  if (s.ach.boss_cadaber) s.inverted = true;
+  // 이미 2-5를 깬 직업은 황혼 진화형을 받음
+  for (const c of ['sword', 'mage', 'archer', 'assassin']) if (s[c] && (s[c].lastClear || 0) >= 13) s.duskForm[c] = true;
   // 마지막 스테이지를 깬 뒤 새 스테이지가 추가되면 바로 열리게 (lastClear = 깬 마지막 스테이지 다음 번호)
   for (const c of ['sword', 'mage', 'archer', 'assassin']) { const v = s[c]; if (v.lastClear) v.unlocked = Math.max(v.unlocked, Math.min(v.lastClear, STAGES.length - 1)); }
   return s;
@@ -984,7 +987,7 @@ function makeHero(cls, lvl, exp) {
     combo: 0, comboIdle: 0, hitDone: false, hit: null, target: null, dest: null, inv: 0, lvl, exp, skill: null, burn: null, dashCd: 0,
     cds: { Q: 0, W: 0, E: 0, R: 0 }, stealth: 0, awake: 0, form: activeForm(cls) };
 }
-function formOpen(cls, f) { const F = FORMS[cls] && FORMS[cls][f]; if (!F) return false; if (TEST_MODE) return true; return F.unlock === 'void' ? !!(save.voidForm && save.voidForm[cls]) : !!(save.ach && save.ach[F.ach]); }
+function formOpen(cls, f) { const F = FORMS[cls] && FORMS[cls][f]; if (!F) return false; if (TEST_MODE) return true; return F.unlock === 'void' ? !!(save.voidForm && save.voidForm[cls]) : F.unlock === 'dusk' ? !!(save.duskForm && save.duskForm[cls]) : !!(save.ach && save.ach[F.ach]); }
 function activeForm(cls) { const f = save.form && save.form[cls]; return f && formOpen(cls, f) ? f : null; }
 function palFor(cls) { const f = activeForm(cls); return f ? FORMS[cls][f].pal : CLASSES[cls].pal; }
 function newGame(si, cls, lvl, exp) {
@@ -1356,7 +1359,12 @@ function killEnemy(e, dir) {
   if (e.T.role === 'boss') {
     grantAch('boss_' + e.kind);
     if (G.si === CH1_COUNT - 1 && !G.dg) grantAch('worldHero');
-    if (e.kind === 'cadaber' && !G.dg) grantAch('justAdventurer');
+    if (e.kind === 'cadaber' && !G.dg) {
+      // 카다베르를 처치한 직업이 황혼 진화형을 받음
+      save = loadSave(); const c = hero.cls;
+      if (!save.duskForm[c]) { save.duskForm[c] = true; writeSave(save); G.newDusk = c; banners.push({ text: '황혼 진화 해금!', sub: DUSK_NAMES[c], t: 0, dur: 2.6, boss: true }); sfx('lvl'); }
+      if (['sword', 'mage', 'archer', 'assassin'].every(k => save.duskForm[k])) grantAch('justAdventurer');
+    }
     if (G.dg && !G.dg.drop) { G.dg.drop = true; for (let i = 0; i < 2; i++) potions.push({ x: clamp(e.x + (i ? 50 : -50), ZX[G.cz] + 80, ZX[G.cz + 1] - 120), y: clamp(e.y + (i ? 30 : -30), BAND[0] + 10, BAND[1] - 10), t: 0 }); }
     if (e.kind === 'nebulon' && G.si === 6 && hero.cls === 'archer' && e.lastUlt) grantAch('starArcher');
     if (e.T.ai) { e.vx = 0; e.vz = 0; e.sink = 0; e.untarget = false; e.alpha = 1; e.pose = null; }
@@ -6426,7 +6434,7 @@ const ACH = [
   ...STAGES.map((S, i) => ({ id: 'boss_' + S.boss, name: MOBS[S.boss].name + ' 격파', desc: `STAGE ${stageNo(i)} ${S.name}의 보스를 쓰러뜨리기`, reward: { lvl: BOSS_LV[i] || BOSS_LV[BOSS_LV.length - 1] }, group: i < CH1_COUNT ? '1장 · 빛의 대륙' : '2장 · 황혼의 세계' })),
   { id: 'worldHero', name: '세계의 영웅', desc: '1장 빛의 대륙을 모두 클리어하기', reward: { cls: 'assassin' }, group: '특별 도전과제' },
   { id: 'burningSword', name: '타오르는 검', desc: '검사로 화염 군주 이그니스의 필살기를 맞고 쓰러지기', reward: { form: 'sword:fire' }, group: '특별 도전과제' },
-  { id: 'justAdventurer', name: '정의의 모험가', desc: '2장 황혼의 세계를 클리어하기 (황혼의 왕 카다베르 격파)', reward: { form: 'all:dusk' }, group: '특별 도전과제' },
+  { id: 'justAdventurer', name: '정의의 모험가', desc: '황혼의 수호자·황혼의 마법사·황혼의 궁수·황혼의 추적자를 모두 얻기', reward: { lvlEach: ['sword', 'mage', 'archer', 'assassin'], n: 10 }, group: '특별 도전과제' },
   { id: 'voidMaster', name: '공허 마스터', desc: '공허의 검사·공허의 마법사·공허의 궁수를 모두 얻기', reward: { lvlEach: ['sword', 'mage', 'archer'], n: 10 }, group: '특별 도전과제' },
   { id: 'starArcher', name: '별의 궁수', desc: '궁수로 7스테이지 공허 황제 네뷸론을 필살기로 처치하기', reward: { form: 'archer:star' }, group: '특별 도전과제' },
 ];
@@ -7155,7 +7163,7 @@ function showClear() {
   let msg;
   if (ch1End) msg = `<p>초원에서 시작한 여정이 공허의 끝에서 막을 내렸습니다. 하지만 공허 너머로 붉은 황혼이 번져옵니다…</p>${newTw ? '<p class="unlock"><b>2장 · 황혼의 세계</b>가 열렸습니다!</p>' : ''}`;
   else if (next) msg = `<p>다음은 <b>STAGE ${stageNo(si + 1)} · ${next.name}</b>입니다. 적이 더 단단하고 빨라집니다. 현재 레벨 Lv.${hero.lvl}로 이어갑니다.</p>`;
-  else msg = si === STAGES.length - 1 && STAGES[si].boss === 'cadaber' ? `<p>황혼의 왕 카다베르가 쓰러지자 하늘과 땅이 뒤집히기 시작합니다… <b>2장 · 황혼의 세계 클리어!</b></p>${newInv ? '<p class="unlock"><b>3장 · 뒤바뀐 세계</b>가 열렸습니다!</p>' : ''}` : `<p>황혼의 세계 다음 지역은 아직 준비 중이에요. 곧 열립니다!</p>`;
+  else msg = si === STAGES.length - 1 && STAGES[si].boss === 'cadaber' ? `<p>황혼의 왕 카다베르가 쓰러지자 하늘과 땅이 뒤집히기 시작합니다… <b>2장 · 황혼의 세계 클리어!</b></p>${newInv ? '<p class="unlock"><b>3장 · 뒤바뀐 세계</b>가 열렸습니다!</p>' : ''}${G.newDusk ? `<p class="unlock">★ 진화 해금 · <b>${DUSK_NAMES[G.newDusk]}</b> — 지도 화면 '형태'에서 바꿀 수 있어요.</p>` : ''}` : `<p>황혼의 세계 다음 지역은 아직 준비 중이에요. 곧 열립니다!</p>`;
   const toMap = ch1End || !next;
   panel.innerHTML = `
     <div class="eyebrow">${ch1End ? 'CHAPTER 1 CLEAR' : ch2End ? 'CHAPTER 2 CLEAR' : `STAGE ${stageNo(si)} CLEAR`} · ${STAGES[si].name}</div>
