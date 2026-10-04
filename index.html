@@ -936,7 +936,7 @@ const BM = () => isDusk() ? DUSKF.basic : 1;
 const rangeMul = () => isVL() ? VOIDF.range : 1;
 const HP_REGEN = 30;
 // 테스트 버전: true면 모든 스테이지가 처음부터 열려 있어요. 정식 버전에서는 false로 바꾸세요.
-const TEST_MODE = true;
+const TEST_MODE = false;
 const testLevel = si => si >= 12 ? 100 : si >= 10 ? 75 + (si - 10) * 5 : 1 + si * 3;
 
 // ---------- save ----------
