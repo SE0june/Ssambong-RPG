@@ -1073,7 +1073,16 @@ function vmap(c) {
     const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
     let h = 0; if (d) h = mx === r ? ((g - b) / d + 6) % 6 * 60 : mx === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60;
     let nh, ns, nl;
-    if (VP === 'd') {
+    if (VP === 'c') {
+      // 타락: 초록 → 잿빛 보라, 파랑 → 검붉은 바다, 따뜻한 색 → 녹슨 핏빛, 흰색 → 잿빛
+      const hh = h > 330 ? h - 360 : h;
+      if (s < 0.15) { nh = 285; ns = 0.12; nl = l > 0.85 ? 0.62 : l * 0.72; }
+      else if (hh >= 70 && h < 170) { nh = 292; ns = 0.3; nl = l * 0.55; }
+      else if (h >= 170 && h < 260) { if (l > 0.8) { nh = 300; ns = 0.1; nl = 0.42; } else { nh = 346; ns = 0.5; nl = l * 0.5; } }
+      else if (h >= 260 && h <= 330) { nh = h; ns = s; nl = l * 0.85; }
+      else if (l > 0.6) { nh = 8; ns = 0.22; nl = l * 0.42; } else { nh = hh < 40 ? 350 + hh * 0.3 : 12; ns = Math.min(1, s * 0.7 + 0.2); nl = l * 0.62; }
+      if (nh < 0) nh += 360; if (nh >= 360) nh -= 360;
+    } else if (VP === 'd') {
       // 황혼: 따뜻한 색 → 주황·금빛, 차가운 색 → 보랏빛
       // 노을 하늘: 따뜻한 색 → 산호·금빛, 보라·파랑 → 남색, 초록·청록 → 장밋빛
       if (s < 0.15) { if (l > 0.85) { nh = 28; ns = 1; nl = 0.9; } else if (l < 0.2) { nh = 236; ns = 0.5; nl = l * 0.95; } else { nh = 250; ns = 0.25; nl = l * 0.9; } }
@@ -6603,8 +6612,8 @@ const CH2_NAMES = ['어둠의 숲', '유령의 해안', '공포 고원', '귀신
 const RIFT = [1500, 470];
 const CHAPTERS = [{ name: '빛의 대륙', sub: 'CHAPTER 1', ch: 0 }, { name: '황혼의 세계', sub: 'CHAPTER 2', ch: 1 }, { name: '뒤바뀐 세계', sub: 'CHAPTER 3', ch: 3 }];
 // 3장 지도: 1장 지도를 뒤집은 '뒤바뀐 세계' (스테이지는 추가 예정)
-const CH3_NODES = [[230, 210], [520, 130], [860, 325], [1318, 300], [1440, 695]];
-let pickCh3 = 0, MAP_FLIP = false;
+const CH3_NODES = [[230, 690], [560, 480], [860, 575], [1318, 600], [1440, 205]];
+let pickCh3 = 0, MAP_FLIP = false, MAP_CORRUPT = false;
 function invertedOpen() { return TEST_MODE || !!save.inverted; }
 const CH2_COUNT = 5; // 2장 스테이지 5개 (내용은 추가 예정)
 function twilightOpen() { return TEST_MODE || !!save.twilight; }
@@ -6670,6 +6679,16 @@ function smoothPath(pts) {
   ctx.closePath();
 }
 function mTree(x, y, s = 1, col = '#4f9a3c') {
+  if (MAP_CORRUPT) {
+    // 타락한 나무: 잎이 다 떨어진 뒤틀린 검은 나무 + 보랏빛 눈
+    limb([x, y, x - 2 * s, y - 16 * s, x + 2 * s, y - 30 * s], 5 * s, '#241a26');
+    limb([x - 1 * s, y - 18 * s, x - 11 * s, y - 28 * s, x - 15 * s, y - 38 * s], 2.6 * s, '#241a26');
+    limb([x + 1 * s, y - 24 * s, x + 10 * s, y - 32 * s, x + 12 * s, y - 42 * s], 2.6 * s, '#241a26');
+    limb([x + 2 * s, y - 30 * s, x + 1 * s, y - 40 * s], 2 * s, '#241a26');
+    const g = 0.5 + 0.5 * Math.sin(now() * 2 + x); circ(x, y - 22 * s, 4 * s); ctx.fillStyle = `rgba(190,90,255,${0.25 * g})`; ctx.fill();
+    circ(x - 1.5 * s, y - 22 * s, 1.1 * s); circ(x + 1.5 * s, y - 22 * s, 1.1 * s); ctx.fillStyle = `rgba(230,170,255,${0.6 + 0.4 * g})`; ctx.fill();
+    return;
+  }
   limb([x, y, x, y - 14 * s], 5 * s, '#7a4f2c');
   circ(x, y - 24 * s, 14 * s); P(col, 2.5);
   circ(x - 4 * s, y - 29 * s, 5 * s); ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fill();
@@ -6687,9 +6706,15 @@ function mPalm(x, y, s = 1, t = 0) {
 function mMountain(x, y, w, h, col = '#9a8468', snow = true) {
   poly([x - w, y, x, y - h, x + w, y]); P(col, 3);
   poly([x, y - h, x + w, y, x + w * 0.15, y]); ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fill();
+  if (MAP_CORRUPT) { ctx.beginPath(); ctx.moveTo(x - w * 0.1, y - h * 0.85); ctx.lineTo(x + w * 0.05, y - h * 0.55); ctx.lineTo(x - w * 0.12, y - h * 0.3); ctx.lineTo(x + w * 0.08, y - h * 0.05); ctx.lineWidth = 2.5; ctx.strokeStyle = '#c070ff'; ctx.stroke(); }
   if (snow) { poly([x - w * 0.34, y - h * 0.66, x, y - h, x + w * 0.34, y - h * 0.66, x + w * 0.12, y - h * 0.58, x - w * 0.04, y - h * 0.7, x - w * 0.2, y - h * 0.58]); P('#f4f6fb', 2); }
 }
 function mCactus(x, y, s = 1) {
+  if (MAP_CORRUPT) {
+    // 타락한 선인장 → 땅에서 솟은 검은 수정
+    for (const [ox, h, a] of [[0, 30, 0], [-7, 18, -0.35], [7, 20, 0.35]]) { ctx.save(); ctx.translate(x + ox * s, y); ctx.rotate(a); poly([-4 * s, 0, 0, -h * s, 4 * s, 0]); P('#2a1834', 2); poly([-1 * s, -2 * s, 0, -h * s * 0.8, 1.5 * s, -2 * s]); ctx.fillStyle = '#b06aff'; ctx.fill(); ctx.restore(); }
+    return;
+  }
   limb([x, y, x, y - 26 * s], 7 * s, '#4f9a4a');
   limb([x, y - 12 * s, x - 9 * s, y - 14 * s, x - 9 * s, y - 22 * s], 4.5 * s, '#4f9a4a');
   limb([x, y - 16 * s, x + 8 * s, y - 18 * s, x + 8 * s, y - 25 * s], 4.5 * s, '#4f9a4a');
@@ -6978,15 +7003,36 @@ function drawDgMap(t, B) {
 }
 function drawCh3(t, B) {
   const [bx0, by0, bx1, by1] = B;
-  ctx.save(); ctx.translate(0, MH); ctx.scale(1, -1);
-  MAP_FLIP = true; try { drawCh1(t, [bx0, MH - by1, bx1, MH - by0]); } finally { MAP_FLIP = false; }
+  // 1장과 같은 지형을 '타락한 색'으로 그리고, 구조물은 타락한 모습으로
+  const pv = VP; VP = 'c'; MAP_CORRUPT = true; MAP_FLIP = true;
+  try { drawCh1(t, B); } finally { VP = pv; MAP_CORRUPT = false; MAP_FLIP = false; }
+  // 대륙을 뒤덮은 보랏빛 균열
+  ctx.save(); smoothPath(LAND); ctx.clip(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 0; i < 9; i++) {
+    let x = 110 + hash(i * 3.7) * 820, y = 420 + hash(i * 5.3) * 420; ctx.beginPath(); ctx.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (hash(i * 9 + k) - 0.5) * 90; y += (hash(i * 7 + k * 3) - 0.3) * 50; ctx.lineTo(x, y); }
+    const g = 0.55 + 0.45 * Math.sin(t * 1.6 + i); ctx.strokeStyle = `rgba(150,60,230,${0.35 * g})`; ctx.lineWidth = 9; ctx.stroke(); ctx.strokeStyle = `rgba(220,150,255,${0.8 * g})`; ctx.lineWidth = 2.5; ctx.stroke();
+  }
+  // 고여 있는 공허 웅덩이
+  for (const [x, y, r] of [[250, 520, 26], [690, 650, 22], [520, 800, 18], [380, 610, 16]]) { ctx.beginPath(); ctx.ellipse(x, y, r * 1.6, r * 0.6, 0, 0, PI * 2); ctx.fillStyle = 'rgba(30,6,40,.75)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(200,120,255,.7)'; ctx.stroke(); }
   ctx.restore();
-  // 색을 뒤집어 '뒤바뀐 세계'
-  ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0); ctx.restore();
-  ctx.fillStyle = 'rgba(60,20,90,.18)'; ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
-  for (let i = 0; i < 12; i++) { const x = 100 + hash(i * 3.3) * 1400, y = 80 + hash(i * 7.7) * 760 + Math.sin(t + i) * 10, r = 6 + hash(i) * 14;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.3 + i); poly([0, -r, r * 0.8, 0, 0, r, -r * 0.8, 0]); ctx.fillStyle = `rgba(255,255,255,${0.15 + 0.1 * Math.sin(t * 2 + i)})`; ctx.fill(); ctx.restore(); }
-  outlinedText('뒤바뀐 세계', 800, 840, 40, '#e8f4ff', OL, 8);
+  // 바다에서 솟은 촉수
+  for (const [x, y, sc, ph] of [[1080, 470, 1, 0], [1180, 820, 0.8, 2], [60, 870, 0.9, 4], [1500, 760, 1.1, 1]]) {
+    const sw = Math.sin(t * 1.2 + ph) * 10;
+    ctx.beginPath(); ctx.moveTo(x - 9 * sc, y); ctx.quadraticCurveTo(x - 16 * sc + sw, y - 40 * sc, x + sw * 1.5, y - 74 * sc); ctx.quadraticCurveTo(x + 6 * sc + sw, y - 40 * sc, x + 9 * sc, y); ctx.closePath(); P('#2a1030', 2.5);
+    for (let k = 0; k < 3; k++) { circ(x + sw * (0.3 + k * 0.35) - 2, y - 18 * sc - k * 18 * sc, 2.2 * sc); ctx.fillStyle = '#d08aff'; ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(x, y, 16 * sc, 5 * sc, 0, 0, PI * 2); ctx.strokeStyle = 'rgba(220,150,255,.5)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  // 타락한 탑 (모래 언덕·계곡 위의 검은 첨탑)
+  for (const [x, y, h] of [[560, 452, 70], [700, 760, 54], [300, 700, 48]]) {
+    poly([x - 12, y, x - 7, y - h * 0.7, x, y - h, x + 7, y - h * 0.7, x + 12, y]); P('#1e1426', 2.5);
+    const g = 0.6 + 0.4 * Math.sin(t * 3 + x); circ(x, y - h * 0.55, 5); ctx.fillStyle = `rgba(200,110,255,${g})`; ctx.fill();
+  }
+  // 떠오르는 공허 포자
+  for (let i = 0; i < 40; i++) { const k = (t * (0.04 + hash(i * 2.3) * 0.05) + hash(i)) % 1, x = bx0 + hash(i * 4.1) * (bx1 - bx0) + Math.sin(t + i) * 14, y = by1 - k * (by1 - by0);
+    circ(x, y, 1.6 + hash(i * 3) * 2); ctx.fillStyle = i % 3 ? `rgba(200,120,255,${0.6 * (1 - k)})` : `rgba(255,90,120,${0.5 * (1 - k)})`; ctx.fill(); }
+  const vg = ctx.createRadialGradient(800, 470, 300, 800, 470, 980); vg.addColorStop(0, 'rgba(20,0,20,0)'); vg.addColorStop(1, 'rgba(20,0,20,.55)'); ctx.fillStyle = vg; ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0);
+  outlinedText('뒤바뀐 세계', 1270, 860, 40, '#e8d0ff', OL, 8);
   if (!invertedOpen()) { ctx.fillStyle = 'rgba(8,6,16,.6)'; ctx.fillRect(bx0, by0, bx1 - bx0, by1 - by0); outlinedText('2-5 황혼의 성을 클리어하면 열립니다', 800, 450, 34, '#ffd35c', OL, 7); }
 }
 function drawMap() {
